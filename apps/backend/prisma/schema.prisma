@@ -1,0 +1,214 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum PersonType {
+  PF
+  PJ
+}
+
+enum ProductType {
+  PRODUCT
+  SERVICE
+}
+
+enum ServiceOrderStatus {
+  OPEN
+  BUDGET
+  WAITING_APPROVAL
+  APPROVED
+  IN_PROGRESS
+  WAITING_PART
+  FINISHED
+  DELIVERED
+  CANCELED
+  INACTIVE
+}
+
+model Company {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users         User[]
+  customers     Customer[]
+  vehicles      Vehicle[]
+  products      Product[]
+  serviceOrders ServiceOrder[]
+}
+
+model User {
+  id        String   @id @default(uuid())
+  companyId String
+  name      String
+  email     String   @unique
+  password  String
+  role      String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  audits  Audit[]
+}
+
+model Customer {
+  id             String     @id @default(uuid())
+  companyId      String
+  personType     PersonType
+  name           String
+  document       String
+  email          String?
+  phone          String?
+  whatsapp       String?
+  birthDate      DateTime?
+  address        String?
+  lgpdConsent    Boolean    @default(false)
+  source         String?
+  observations   String?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  company      Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  vehicles     Vehicle[]
+  serviceOrders ServiceOrder[]
+
+  @@index([companyId, document])
+}
+
+model Vehicle {
+  id             String    @id @default(uuid())
+  companyId      String
+  customerId     String
+  plate          String
+  brand          String
+  model          String
+  version        String?
+  year           Int?
+  color          String?
+  chassi         String?
+  renavam        String?
+  fuel           String?
+  mileage        Int?
+  nextReviewDate DateTime?
+  observations   String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  company       Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer      Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  serviceOrders ServiceOrder[]
+
+  @@index([companyId, plate])
+}
+
+model Product {
+  id          String      @id @default(uuid())
+  companyId   String
+  type        ProductType
+  code        String
+  description String
+  cost        Decimal?    @db.Decimal(10, 2)
+  salePrice   Decimal?    @db.Decimal(10, 2)
+  stock       Int         @default(0)
+  minStock    Int         @default(0)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  items   ServiceOrderItem[]
+
+  @@index([companyId, code])
+}
+
+model ServiceOrder {
+  id             String             @id @default(uuid())
+  companyId      String
+  customerId     String
+  vehicleId      String
+  code           String
+  status         ServiceOrderStatus @default(OPEN)
+  mileage        Int?
+  internalNotes  String?
+  customerReport String?
+  dueDate        DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  company  Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer Customer           @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  vehicle  Vehicle            @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  items    ServiceOrderItem[]
+
+  @@index([companyId, code])
+}
+
+model ServiceOrderItem {
+  id             String   @id @default(uuid())
+  serviceOrderId String
+  productId      String?
+  description    String
+  quantity       Decimal  @db.Decimal(10, 2)
+  unitPrice      Decimal  @db.Decimal(10, 2)
+  discount       Decimal? @db.Decimal(10, 2)
+  totalPrice     Decimal  @db.Decimal(10, 2)
+  executor       String?
+  warrantyDays   Int?
+
+  serviceOrder ServiceOrder @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+  product      Product?     @relation(fields: [productId], references: [id], onDelete: SetNull)
+}
+
+model AccountsPayable {
+  id          String   @id @default(uuid())
+  companyId   String
+  description String
+  amount      Decimal  @db.Decimal(10, 2)
+  dueDate     DateTime
+  paidAt      DateTime?
+  status      String
+  createdAt   DateTime @default(now())
+}
+
+model AccountsReceivable {
+  id          String   @id @default(uuid())
+  companyId   String
+  description String
+  amount      Decimal  @db.Decimal(10, 2)
+  dueDate     DateTime
+  receivedAt  DateTime?
+  status      String
+  createdAt   DateTime @default(now())
+}
+
+model CashRegister {
+  id          String   @id @default(uuid())
+  companyId   String
+  openedAt    DateTime
+  closedAt    DateTime?
+  initialCash Decimal  @db.Decimal(10, 2)
+  finalCash   Decimal? @db.Decimal(10, 2)
+  status      String
+}
+
+model Audit {
+  id        String   @id @default(uuid())
+  companyId String
+  userId    String?
+  action    String
+  entity    String
+  entityId  String?
+  metadata  Json?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, createdAt])
+}
